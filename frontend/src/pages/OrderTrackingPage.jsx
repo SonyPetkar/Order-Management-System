@@ -20,6 +20,10 @@ const OrderTrackingPage = () => {
       const res = await orderService.getOrderById(id);
       const data = res.data?.data || res.data?.order || res.data;
       setOrder(data);
+      
+      if (data.status === 'delivered') {
+        clearInterval(window.statusInterval);
+      }
     } catch (err) {
       console.error("Fetch error:", err);
       setError("Could not connect to tracking server.");
@@ -28,31 +32,9 @@ const OrderTrackingPage = () => {
 
   useEffect(() => {
     fetchOrder();
-    const interval = setInterval(fetchOrder, 5000);
-    return () => clearInterval(interval);
+    window.statusInterval = setInterval(fetchOrder, 5000);
+    return () => clearInterval(window.statusInterval);
   }, [id]);
-
-  // FORCED SIMULATION LOGIC
-  useEffect(() => {
-    if (order && order.status !== 'delivered') {
-      const currentIndex = statusSteps.findIndex(s => s.id === order.status);
-      const nextStatus = statusSteps[currentIndex + 1]?.id;
-
-      if (nextStatus) {
-        const timer = setTimeout(async () => {
-          try {
-            console.log(`Attempting to update ${id} to ${nextStatus}...`);
-            await orderService.updateOrderStatus(id, nextStatus);
-            fetchOrder(); // Refresh after update
-          } catch (e) {
-            console.error("Update failed. Check if your backend has this route.", e.response?.data);
-          }
-        }, 15000); // 15 seconds
-
-        return () => clearTimeout(timer);
-      }
-    }
-  }, [order?.status, id]);
 
   if (error) return <div className="text-red-500 p-20 text-center font-black">{error}</div>;
   if (!order) return <div className="text-white p-20 text-center font-black animate-pulse">INITIALIZING TRACKER...</div>;
@@ -70,9 +52,7 @@ const OrderTrackingPage = () => {
       </div>
       
       <div className="space-y-10 relative">
-        {/* Progress Line Background */}
         <div className="absolute left-7 top-2 bottom-2 w-1 bg-slate-100 rounded-full overflow-hidden">
-          {/* Active Progress Line */}
           <div 
             className="w-full bg-blue-600 transition-all duration-1000 ease-in-out" 
             style={{ height: `${(currentIdx / (statusSteps.length - 1)) * 100}%` }}

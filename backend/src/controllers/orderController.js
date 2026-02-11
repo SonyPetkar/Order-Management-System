@@ -1,6 +1,25 @@
 import Order from '../models/Order.js';
 import mongoose from 'mongoose';
 
+const simulateStatusUpdates = (orderId) => {
+  const statuses = ['preparing', 'out_for_delivery', 'delivered'];
+  const intervals = [10000, 30000, 60000]; 
+
+  statuses.forEach((status, index) => {
+    setTimeout(async () => {
+      try {
+        await Order.findByIdAndUpdate(orderId, { 
+          status, 
+          updatedAt: Date.now() 
+        });
+        console.log(`Simulation: Order ${orderId} updated to ${status}`);
+      } catch (err) {
+        console.error("Simulation update failed:", err.message);
+      }
+    }, intervals[index]);
+  });
+};
+
 export const createOrder = async (req, res) => {
   console.log("1. Backend received request body:", req.body);
   try {
@@ -26,11 +45,11 @@ export const createOrder = async (req, res) => {
     };
 
     console.log("4. Attempting to save to MongoDB...");
-    
-    // This is the line where it usually hangs
     const order = await Order.create(orderData);
     
-    console.log("5. Save successful!");
+    console.log("5. Save successful! Starting simulation...");
+    simulateStatusUpdates(order._id);
+
     return res.status(201).json({
       success: true,
       order,
