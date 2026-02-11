@@ -1,6 +1,6 @@
 import axios from 'axios';
 
-const API_URL = 'http://localhost:5000/api';
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
 
 const api = axios.create({
   baseURL: API_URL,
@@ -27,7 +27,7 @@ api.interceptors.response.use(
   (error) => {
 
     if (!error.response) {
-      console.error("Network Error: Please check if your backend server is running on http://localhost:5000");
+      console.error("Network Error: Could not connect to the server.");
       return Promise.reject(new Error("Server connection lost. Please try again."));
     }
 
