@@ -8,10 +8,16 @@ const simulateStatusUpdates = (orderId) => {
   statuses.forEach((status, index) => {
     setTimeout(async () => {
       try {
-        await Order.findByIdAndUpdate(orderId, { 
-          status, 
-          updatedAt: Date.now() 
-        });
+        const updateData = { status, updatedAt: Date.now() };
+        
+        if (status === 'out_for_delivery') {
+          updateData['deliveryMetrics.qualityScore'] = 85;
+        }
+        if (status === 'delivered') {
+          updateData['deliveryMetrics.qualityScore'] = 70;
+        }
+
+        await Order.findByIdAndUpdate(orderId, updateData);
         console.log(`Simulation: Order ${orderId} updated to ${status}`);
       } catch (err) {
         console.error("Simulation update failed:", err.message);
@@ -21,16 +27,13 @@ const simulateStatusUpdates = (orderId) => {
 };
 
 export const createOrder = async (req, res) => {
-  console.log("1. Backend received request body:", req.body);
   try {
     const { items, shippingAddress, paymentMethod, totalAmount } = req.body;
 
     if (!items || items.length === 0) {
-      console.log("2. Error: No items");
       return res.status(400).json({ success: false, message: 'No items' });
     }
 
-    console.log("3. Preparing order data...");
     const orderData = {
       userId: req.user.id,
       items: items.map(item => ({
@@ -41,13 +44,18 @@ export const createOrder = async (req, res) => {
       shippingAddress,
       paymentMethod,
       status: 'confirmed',
-      paymentStatus: 'completed'
+      paymentStatus: 'completed',
+      ecoData: {
+        co2SavedKg: (Math.random() * 2).toFixed(2),
+        isBatchDelivery: Math.random() > 0.5
+      },
+      deliveryMetrics: {
+        estimatedArrival: new Date(Date.now() + 30 * 60000),
+        qualityScore: 100
+      }
     };
 
-    console.log("4. Attempting to save to MongoDB...");
     const order = await Order.create(orderData);
-    
-    console.log("5. Save successful! Starting simulation...");
     simulateStatusUpdates(order._id);
 
     return res.status(201).json({
@@ -56,11 +64,28 @@ export const createOrder = async (req, res) => {
     });
 
   } catch (error) {
-    console.error("!!! DATABASE CRASH ERROR !!!:", error);
     return res.status(500).json({
       success: false,
       message: error.message,
     });
+  }
+};
+
+export const getOrderById = async (req, res) => {
+  try {
+    const order = await Order.findById(req.params.id).populate('userId', 'name email');
+
+    if (!order) {
+      return res.status(404).json({ success: false, message: 'Order not found' });
+    }
+
+    if (order.userId._id.toString() !== req.user.id && req.user.role !== 'admin') {
+      return res.status(403).json({ success: false, message: 'Not authorized' });
+    }
+
+    res.status(200).json({ success: true, order });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
   }
 };
 
@@ -86,10 +111,7 @@ export const getAllOrders = async (req, res) => {
       orders,
     });
   } catch (error) {
-    res.status(500).json({
-      success: false,
-      message: error.message,
-    });
+    res.status(500).json({ success: false, message: error.message });
   }
 };
 
@@ -97,9 +119,7 @@ export const getUserOrders = async (req, res) => {
   try {
     const { status, page = 1, limit = 10 } = req.query;
     const filter = { userId: req.user.id };
-    if (status) {
-      filter.status = status;
-    }
+    if (status) filter.status = status;
 
     const skip = (page - 1) * limit;
 
@@ -118,67 +138,17 @@ export const getUserOrders = async (req, res) => {
       orders,
     });
   } catch (error) {
-    res.status(500).json({
-      success: false,
-      message: error.message,
-    });
-  }
-};
-
-export const getOrderById = async (req, res) => {
-  try {
-    const order = await Order.findById(req.params.id).populate(
-      'userId',
-      'name email'
-    );
-
-    if (!order) {
-      return res.status(404).json({
-        success: false,
-        message: 'Order not found',
-      });
-    }
-
-    if (
-      order.userId._id.toString() !== req.user.id &&
-      req.user.role !== 'admin'
-    ) {
-      return res.status(403).json({
-        success: false,
-        message: 'Not authorized to view this order',
-      });
-    }
-
-    res.status(200).json({
-      success: true,
-      order,
-    });
-  } catch (error) {
-    res.status(500).json({
-      success: false,
-      message: error.message,
-    });
+    res.status(500).json({ success: false, message: error.message });
   }
 };
 
 export const updateOrderStatus = async (req, res) => {
   try {
     const { status } = req.body;
-
-    if (!status) {
-      return res.status(400).json({
-        success: false,
-        message: 'Status is required',
-      });
-    }
+    if (!status) return res.status(400).json({ success: false, message: 'Status is required' });
 
     const validStatuses = ['pending', 'confirmed', 'preparing', 'out_for_delivery', 'shipped', 'delivered', 'cancelled'];
-    if (!validStatuses.includes(status)) {
-      return res.status(400).json({
-        success: false,
-        message: `Invalid status`,
-      });
-    }
+    if (!validStatuses.includes(status)) return res.status(400).json({ success: false, message: 'Invalid status' });
 
     const order = await Order.findByIdAndUpdate(
       req.params.id,
@@ -186,57 +156,26 @@ export const updateOrderStatus = async (req, res) => {
       { new: true, runValidators: true }
     );
 
-    if (!order) {
-      return res.status(404).json({
-        success: false,
-        message: 'Order not found',
-      });
-    }
+    if (!order) return res.status(404).json({ success: false, message: 'Order not found' });
 
-    res.status(200).json({
-      success: true,
-      message: 'Order updated successfully',
-      order,
-    });
+    res.status(200).json({ success: true, message: 'Order updated successfully', order });
   } catch (error) {
-    res.status(500).json({
-      success: false,
-      message: error.message,
-    });
+    res.status(500).json({ success: false, message: error.message });
   }
 };
 
 export const deleteOrder = async (req, res) => {
   try {
     const order = await Order.findById(req.params.id);
+    if (!order) return res.status(404).json({ success: false, message: 'Order not found' });
 
-    if (!order) {
-      return res.status(404).json({
-        success: false,
-        message: 'Order not found',
-      });
-    }
-
-    if (
-      order.userId.toString() !== req.user.id &&
-      req.user.role !== 'admin'
-    ) {
-      return res.status(403).json({
-        success: false,
-        message: 'Not authorized',
-      });
+    if (order.userId.toString() !== req.user.id && req.user.role !== 'admin') {
+      return res.status(403).json({ success: false, message: 'Not authorized' });
     }
 
     await Order.findByIdAndDelete(req.params.id);
-
-    res.status(200).json({
-      success: true,
-      message: 'Order deleted successfully',
-    });
+    res.status(200).json({ success: true, message: 'Order deleted successfully' });
   } catch (error) {
-    res.status(500).json({
-      success: false,
-      message: error.message,
-    });
+    res.status(500).json({ success: false, message: error.message });
   }
 };

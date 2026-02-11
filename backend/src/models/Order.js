@@ -57,7 +57,6 @@ const orderSchema = new mongoose.Schema(
     },
     paymentMethod: {
       type: String,
-  
       enum: ['credit_card', 'debit_card', 'paypal', 'bank_transfer', 'cash_on_delivery', 'UPI', 'Cash', 'Card'],
       required: true,
     },
@@ -66,11 +65,18 @@ const orderSchema = new mongoose.Schema(
       enum: ['pending', 'completed', 'failed'],
       default: 'pending',
     },
+    ecoData: {
+      co2SavedKg: { type: Number, default: 0 },
+      isBatchDelivery: { type: Boolean, default: false }
+    },
+    deliveryMetrics: {
+      estimatedArrival: { type: Date },
+      qualityScore: { type: Number, default: 100 }
+    },
     notes: String,
   },
   { timestamps: true }
 );
-
 
 orderSchema.pre('save', async function (next) {
   if (this.isNew && !this.orderNumber) {
@@ -81,5 +87,4 @@ orderSchema.pre('save', async function (next) {
 });
 
 const Order = mongoose.models.Order || mongoose.model('Order', orderSchema);
-
 export default Order;

@@ -6,7 +6,12 @@ const menuItemSchema = new mongoose.Schema({
   price: { type: Number, required: true, min: 0 },
   image: { type: String, required: true },
   category: { type: String, required: true, index: true },
-  isAvailable: { type: Boolean, default: true }
+  isAvailable: { type: Boolean, default: true },
+  moodTags: [{ type: String, enum: ['Tired', 'Celebrating', 'Healthy', 'Lazy', 'Hungover'] }],
+  ingredients: [{
+    name: { type: String },
+    origin: { type: String }
+  }]
 }, { timestamps: true });
 
 const MenuItem = mongoose.model('MenuItem', menuItemSchema);
