@@ -1,234 +1,161 @@
 import { useState } from 'react';
 import { useCart } from '../hooks/CartContext';
-import { orderService } from '../services/api'; 
+import { useAuth } from '../hooks/AuthContext';
 import { useNavigate } from 'react-router-dom';
-import confetti from 'canvas-confetti';
 
 const CheckoutPage = ({ onOrderPlaced }) => {
-  const { cart, clearCart } = useCart();
+  const { cart, total, clearCart } = useCart();
+  const { user } = useAuth();
   const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
-  const [showModal, setShowModal] = useState(false);
-  const [paymentStage, setPaymentStage] = useState('idle');
-  const [formData, setFormData] = useState({ 
-    name: '', 
-    address: '', 
-    phone: '', 
-    payment: 'UPI' 
-  });
-  
-  const total = cart.reduce((acc, item) => acc + (item.price * item.quantity), 0);
+  const [address, setAddress] = useState('');
 
-  const fireConfetti = () => {
-    confetti({
-      particleCount: 150,
-      spread: 70,
-      origin: { y: 0.6 },
-      colors: ['#22c55e', '#3b82f6', '#f59e0b']
-    });
-  };
-
-  const handleSubmit = async (e) => {
+  const handlePlaceOrder = async (e) => {
     e.preventDefault();
     setLoading(true);
-    // Simulate initial gateway connection
-    await new Promise((resolve) => setTimeout(resolve, 1500));
-    setPaymentStage('processing');
-    setLoading(false);
-  };
-
-  const finalizeOrder = async () => {
-    setLoading(true);
-
-    // Map UI selection to the ENUMS in your Order.js model
-    const mappedPaymentMethod = 
-      formData.payment === 'Card' ? 'credit_card' : 
-      formData.payment === 'UPI' ? 'bank_transfer' : 'bank_transfer';
-
-    const orderData = {
-      items: cart.map(item => ({
-        productId: item._id, 
-        productName: item.name,
-        image: item.image, 
-        quantity: item.quantity,
-        price: item.price,
-        subtotal: item.price * item.quantity 
-      })),
-      paymentMethod: mappedPaymentMethod,
-      shippingAddress: {
-        street: formData.address, 
-        city: 'Pune',             
-        state: 'Maharashtra',     
-        postalCode: '411001',     
-        country: 'India'
-      },
-      totalAmount: total,
-      status: 'confirmed',      
-      paymentStatus: 'completed' 
-    };
-
     try {
-      const response = await orderService.createOrder(orderData);
-      
-      // Handle different response structures from backend
-      const createdOrder = response.data?.data || response.data?.order || response.data;
-      const orderId = createdOrder?._id || createdOrder?.id;
-      
-      if (orderId) {
-        // Save tracking info for the Tracking Page
-        localStorage.setItem('activeTrackingId', String(orderId));
-        localStorage.setItem('trackingStartTime', String(Date.now()));
-
-        setPaymentStage('idle');
-        fireConfetti();
+      // Simulating API Call
+      const mockOrderId = Math.random().toString(36).substr(2, 9).toUpperCase();
+      setTimeout(() => {
         clearCart();
-        setShowModal(String(orderId)); 
-      } else {
-        throw new Error("Order created but server returned no ID");
-      }
+        onOrderPlaced(mockOrderId);
+        setLoading(false);
+      }, 2000);
     } catch (err) {
-      console.error("Order Finalization Error:", err.response?.data || err.message);
-      const errorDetail = err.response?.data?.message || "Server Error (Connection Reset)";
-      alert(`Order failed: ${errorDetail}`);
-      setPaymentStage('idle');
-    } finally {
+      console.error("Order failed", err);
       setLoading(false);
     }
   };
 
-  if (cart.length === 0) {
-    return (
-      <div className="text-center py-20 bg-slate-950 min-h-[60vh] flex flex-col items-center justify-center">
-        <h2 className="text-2xl text-slate-500 font-black tracking-tight">CART IS EMPTY</h2>
-        <button onClick={() => navigate('/')} className="text-blue-500 font-bold underline mt-4">
-          RETURN TO MENU
-        </button>
-      </div>
-    );
-  }
-
   return (
-    <div className="max-w-2xl mx-auto p-6 my-10 bg-white rounded-[3rem] shadow-2xl border border-slate-100 overflow-hidden relative">
-      
-      {/* Payment Processing Overlay */}
-      {paymentStage === 'processing' && (
-        <div className="fixed inset-0 z-[100] bg-slate-900/90 backdrop-blur-md flex items-center justify-center p-4">
-          <div className="max-w-md w-full bg-white rounded-[2.5rem] p-8 shadow-2xl text-center border border-slate-100">
-            <div className="flex justify-between items-center mb-8">
-              <div className="flex items-center gap-2">
-                <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center text-white font-black italic">S</div>
-                <span className="font-black text-slate-900 tracking-tighter">SECURE_PAY</span>
-              </div>
-              <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Test Mode</span>
-            </div>
-            
-            <h3 className="text-xl font-black text-slate-900 uppercase mb-2">Authorize Payment</h3>
-            <p className="text-4xl font-black text-blue-600 italic tracking-tighter mb-8">${total.toFixed(2)}</p>
-            
-            <div className="bg-slate-50 p-5 rounded-2xl mb-8 border border-slate-100">
-              <div className="flex justify-between items-center">
-                <span className="text-[10px] font-black text-slate-400 uppercase">Method</span>
-                <span className="font-black text-slate-900 uppercase italic">{formData.payment}</span>
-              </div>
-            </div>
+    <div className="max-w-5xl mx-auto px-6 py-12 relative animate-in fade-in slide-in-from-bottom-6 duration-1000">
+      {/* Background Decorative Glow */}
+      <div className="absolute top-0 right-0 w-64 h-64 bg-teal-500/10 rounded-full blur-[100px] pointer-events-none"></div>
 
-            <div className="grid grid-cols-2 gap-4">
-              <button onClick={() => setPaymentStage('idle')} className="py-4 rounded-2xl bg-slate-100 text-slate-400 font-black text-[10px] uppercase tracking-widest hover:bg-slate-200 transition-all">
-                Cancel
-              </button>
-              <button onClick={finalizeOrder} disabled={loading} className="py-4 rounded-2xl bg-blue-600 text-white font-black text-[10px] uppercase tracking-widest hover:bg-blue-500 shadow-lg shadow-blue-200 transition-all flex items-center justify-center gap-2">
-                {loading ? <div className="w-3 h-3 border-2 border-white/30 border-t-white rounded-full animate-spin" /> : 'Confirm Pay'}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Success Modal */}
-      {showModal && (
-        <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
-          <div className="bg-white rounded-[3.5rem] p-12 max-w-sm w-full text-center shadow-2xl">
-            <div className="w-20 h-20 bg-green-100 text-green-600 rounded-full flex items-center justify-center text-4xl mx-auto mb-6">✨</div>
-            <h3 className="text-2xl font-black text-slate-900 mb-4 tracking-tighter italic uppercase">Order Placed!</h3>
-            <p className="text-slate-500 font-bold leading-relaxed mb-8 text-sm text-center">
-              Thank you for placing the order with us! We value your time and will deliver the food in a short span.
-            </p>
-            <button onClick={() => { 
-              const orderId = typeof showModal === 'string' ? showModal : null;
-              setShowModal(false); 
-              onOrderPlaced(orderId); 
-            }} className="w-full bg-slate-900 text-white py-4 rounded-2xl font-black text-[10px] tracking-[0.2em] hover:bg-slate-800 transition-all uppercase">
-              Track Order
-            </button>
-          </div>
-        </div>
-      )}
-
-      <div className="bg-slate-900 -mx-6 -mt-6 p-10 mb-8 text-center">
-        <h2 className="text-3xl font-black text-white tracking-tighter italic">CHECKOUT</h2>
-        <div className="h-1 w-20 bg-blue-500 mx-auto mt-2 rounded-full"></div>
+      <div className="mb-12">
+        <h1 className="text-5xl md:text-7xl font-black italic tracking-tighter text-white uppercase leading-none">
+          Final <span className="text-teal-500">Step</span>
+        </h1>
+        <p className="text-slate-500 font-black mt-4 uppercase tracking-[0.4em] text-[10px] flex items-center gap-3">
+          <span className="w-8 h-[1px] bg-teal-500/50"></span>
+          Review and confirm your feast
+        </p>
       </div>
-      
-      <form onSubmit={handleSubmit} className="space-y-6">
-        <div className="space-y-4">
-          <input required type="text" placeholder="Full Name" 
-            className="w-full p-4 bg-slate-50 border-none rounded-2xl focus:ring-2 focus:ring-blue-500 outline-none" 
-            onChange={(e) => setFormData({...formData, name: e.target.value})} />
-          
-          <textarea required placeholder="Delivery Address" 
-            className="w-full p-4 bg-slate-50 border-none rounded-2xl focus:ring-2 focus:ring-blue-500 outline-none h-28 resize-none" 
-            onChange={(e) => setFormData({...formData, address: e.target.value})} />
-          
-          <input required type="tel" placeholder="Phone Number" 
-            className="w-full p-4 bg-slate-50 border-none rounded-2xl focus:ring-2 focus:ring-blue-500 outline-none" 
-            onChange={(e) => setFormData({...formData, phone: e.target.value})} />
-        </div>
-        
-        <div className="bg-slate-50 p-6 rounded-[2.5rem] border border-slate-100">
-          <h3 className="font-black mb-4 text-slate-800 text-xs uppercase tracking-widest ml-1">Payment Options</h3>
-          <div className="grid grid-cols-3 gap-3 mb-6">
-            {['UPI', 'Card', 'Cash'].map(mode => (
-              <button key={mode} type="button" 
-                onClick={() => setFormData({...formData, payment: mode})}
-                className={`py-3 rounded-2xl border-2 font-black text-xs transition-all ${
-                  formData.payment === mode 
-                  ? 'border-blue-600 bg-blue-600 text-white shadow-lg' 
-                  : 'border-white bg-white text-slate-400'
-                }`}>
-                {mode}
-              </button>
-            ))}
+
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-10">
+        {/* Left: Delivery Details */}
+        <div className="lg:col-span-7 space-y-8">
+          <div className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-[3rem] p-8 md:p-12 shadow-2xl">
+            <h2 className="text-xl font-black text-white uppercase italic tracking-tighter mb-8 flex items-center gap-4">
+              <span className="w-10 h-10 bg-teal-600 rounded-xl flex items-center justify-center text-sm not-italic shadow-lg shadow-teal-900/40">01</span>
+              Delivery Destination
+            </h2>
+            
+            <form onSubmit={handlePlaceOrder} className="space-y-6">
+              <div className="space-y-2">
+                <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-4">Full Address</label>
+                <textarea
+                  required
+                  rows="4"
+                  placeholder="Street, Apartment, Floor, Landmark..."
+                  className="w-full px-8 py-6 bg-black/40 border border-white/10 rounded-[2rem] text-white outline-none focus:ring-2 focus:ring-teal-500/50 focus:border-teal-500/50 transition-all placeholder:text-slate-700 text-sm font-medium resize-none"
+                  value={address}
+                  onChange={(e) => setAddress(e.target.value)}
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-4">Phone</label>
+                  <input
+                    type="tel"
+                    placeholder="+1 (555) 000-0000"
+                    className="w-full px-8 py-5 bg-black/40 border border-white/10 rounded-2xl text-white outline-none focus:ring-2 focus:ring-teal-500/50 text-xs font-bold transition-all placeholder:text-slate-700"
+                    required
+                  />
+                </div>
+                <div className="space-y-2">
+                  <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-4">Time</label>
+                  <div className="w-full px-8 py-5 bg-teal-500/5 border border-teal-500/20 rounded-2xl text-teal-500 text-[10px] font-black uppercase tracking-widest flex items-center justify-center">
+                    ASAP (~35 MIN)
+                  </div>
+                </div>
+              </div>
+            </form>
           </div>
 
-          {formData.payment === 'Card' && (
-            <div className="space-y-3 p-4 bg-white rounded-2xl border border-slate-200 animate-in fade-in zoom-in duration-300">
-              <div className="relative">
-                <input type="text" placeholder="Card Number" className="w-full p-3 bg-slate-50 rounded-xl border-none text-sm" />
-                <span className="absolute right-4 top-3 text-slate-300">💳</span>
+          <div className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-[3rem] p-8 md:p-12 shadow-2xl">
+             <h2 className="text-xl font-black text-white uppercase italic tracking-tighter mb-8 flex items-center gap-4">
+              <span className="w-10 h-10 bg-indigo-600 rounded-xl flex items-center justify-center text-sm not-italic shadow-lg shadow-indigo-900/40">02</span>
+              Payment Method
+            </h2>
+            <div className="p-6 rounded-2xl border-2 border-teal-500/50 bg-teal-500/5 flex items-center justify-between group cursor-pointer transition-all">
+              <div className="flex items-center gap-4">
+                <span className="text-2xl">💳</span>
+                <div>
+                  <p className="text-xs font-black text-white uppercase tracking-widest">Credit / Debit Card</p>
+                  <p className="text-[9px] text-teal-500/70 font-bold uppercase mt-1">Encrypted & Secure</p>
+                </div>
               </div>
-              <div className="grid grid-cols-2 gap-3">
-                <input type="text" placeholder="MM/YY" className="p-3 bg-slate-50 rounded-xl border-none text-sm" />
-                <input type="text" placeholder="CVC" className="p-3 bg-slate-50 rounded-xl border-none text-sm" />
-              </div>
+              <div className="w-5 h-5 rounded-full border-4 border-teal-500 bg-teal-500"></div>
             </div>
-          )}
+          </div>
         </div>
 
-        <button 
-          type="submit" 
-          disabled={loading}
-          className={`w-full ${loading ? 'bg-slate-800 cursor-not-allowed' : 'bg-green-600 hover:bg-green-500'} text-white py-5 rounded-[2rem] font-black text-xl transition-all shadow-xl active:scale-95`}
-        >
-          {loading ? (
-            <div className="flex items-center justify-center gap-3">
-              <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
-              <span>PROCESSING...</span>
+        {/* Right: Order Summary */}
+        <div className="lg:col-span-5">
+          <div className="sticky top-32 bg-gradient-to-br from-slate-900 to-black border border-white/10 rounded-[3.5rem] p-10 shadow-2xl overflow-hidden">
+            <div className="absolute top-0 right-0 w-32 h-32 bg-teal-500/5 rounded-full blur-3xl"></div>
+            
+            <h3 className="text-2xl font-black text-white uppercase italic tracking-tighter mb-8">Summary</h3>
+            
+            <div className="space-y-6 mb-10 max-h-[300px] overflow-y-auto pr-4 custom-scrollbar">
+              {cart.map((item) => (
+                <div key={item._id} className="flex justify-between items-center group">
+                  <div className="flex items-center gap-4">
+                    <div className="w-12 h-12 rounded-xl bg-white/5 border border-white/10 flex items-center justify-center font-black text-teal-500 italic">
+                      {item.quantity}x
+                    </div>
+                    <div>
+                      <p className="text-[11px] font-black text-white uppercase tracking-wider">{item.name}</p>
+                      <p className="text-[9px] text-slate-500 font-bold uppercase tracking-widest">${Number(item.price).toFixed(2)} / unit</p>
+                    </div>
+                  </div>
+                  <span className="text-xs font-black text-white italic">${(item.price * item.quantity).toFixed(2)}</span>
+                </div>
+              ))}
             </div>
-          ) : (
-            `PLACE ORDER $${total.toFixed(2)}`
-          )}
-        </button>
-      </form>
+
+            <div className="border-t border-white/10 pt-8 space-y-4">
+              <div className="flex justify-between text-[10px] font-black uppercase tracking-[0.2em] text-slate-500">
+                <span>Subtotal</span>
+                <span>${total.toFixed(2)}</span>
+              </div>
+              <div className="flex justify-between text-[10px] font-black uppercase tracking-[0.2em] text-slate-500">
+                <span>Delivery Fee</span>
+                <span className="text-teal-500">FREE</span>
+              </div>
+              <div className="flex justify-between pt-4">
+                <span className="text-xl font-black text-white uppercase italic tracking-tighter">Total</span>
+                <span className="text-2xl font-black text-teal-500 italic tracking-tighter">${total.toFixed(2)}</span>
+              </div>
+            </div>
+
+            <button
+              onClick={handlePlaceOrder}
+              disabled={loading || !address}
+              className="w-full mt-10 bg-teal-600 hover:bg-teal-500 text-white font-black py-6 rounded-[2rem] transition-all duration-500 shadow-xl shadow-teal-900/40 active:scale-95 disabled:opacity-30 disabled:grayscale uppercase tracking-[0.3em] text-[10px] relative overflow-hidden group/btn"
+            >
+              <span className="relative z-10">{loading ? 'Processing Transaction...' : 'Confirm & Pay Now'}</span>
+              <div className="absolute inset-0 bg-gradient-to-r from-white/0 via-white/20 to-white/0 -translate-x-full group-hover/btn:animate-[shimmer_1.5s_infinite]"></div>
+            </button>
+            
+            <p className="text-center text-[9px] text-slate-600 font-black uppercase tracking-widest mt-6">
+              🔒 SSL Secure 256-bit Payment
+            </p>
+          </div>
+        </div>
+      </div>
     </div>
   );
 };
